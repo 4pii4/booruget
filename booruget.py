@@ -1,5 +1,7 @@
 import argparse
+import multiprocessing
 import os
+import sys
 import urllib.parse
 from io import BytesIO
 
@@ -7,7 +9,7 @@ import requests
 from PIL import Image as PImage
 
 
-def split(tag_string: str) -> list[str]:
+def split_tag_string(tag_string: str) -> list[str]:
     return [t.replace(' ', '_').replace('(', '\\(').replace(')', '\\)') for t in tag_string.split(' ')]
 
 
@@ -21,8 +23,8 @@ def convert_tags_to_url(tags: list[str], page: int) -> str:
 class Image:
     def __init__(self, obj):
         self.file_url: str = obj['file_url']
-        self.tags: list[str] = split(obj['tag_string_general'])
-        self.tags_character: list[str] = split(obj['tag_string_character'])
+        self.tags: list[str] = split_tag_string(obj['tag_string_general'])
+        self.tags_character: list[str] = split_tag_string(obj['tag_string_character'])
         self.width: int = obj['image_width']
         self.height: int = obj['image_height']
         self.ratio = round(self.width / self.height, 2)
@@ -32,6 +34,23 @@ class Image:
         return PImage.open(BytesIO(response.content))
 
 
+def download(im: Image, args, min_width: int, min_height: int):
+    local_path = os.path.join(os.getcwd(), args.output_directory, os.path.basename(im.file_url))
+    save_path = os.path.splitext(local_path)[0] + '.png'
+    txt_path = os.path.splitext(local_path)[0] + '.txt'
+
+    if args.verbose:
+        print(f"downloading {im.file_url} to {save_path}", file=sys.stderr)
+
+    with open(save_path, 'wb') as f:
+        if not args.no_resize:
+            im.download_image().resize((min_width, min_height)).save(f, format="png")
+        else:
+            im.download_image().save(f, format="png")
+    with open(txt_path, 'w') as f:
+        print(', '.join(args.trigger_tags + im.tags_character + im.tags), file=f)
+
+
 def main():
     parser = argparse.ArgumentParser(prog='booruget', description='Download and resize images, and download tags from Danbooru for AI training')
     parser.add_argument('-t', '--tag', required=True, action='append', help='tags (maximum 2 tags)')
@@ -39,6 +58,10 @@ def main():
     parser.add_argument('--include-tags', required=False, default=[], action='append', help='only include images with all of these tags (can be repeated)')
     parser.add_argument('--exclude-tags', required=False, default=[], action='append', help='exclude all images with any of these tags (can be repeated)')
     parser.add_argument('-o', '--output-directory', required=True, help='output directory')
+    parser.add_argument('-j', '--jobs', type=int, default=multiprocessing.cpu_count(), help='number of parallel download threads')
+    parser.add_argument('-v', '--verbose', action='store_true', help='verbose mode')
+    parser.add_argument('--no-resize', action='store_true', help='disable image resizing')
+
     args = parser.parse_args()
 
     if len(args.tag) > 2:
@@ -61,6 +84,9 @@ def main():
         page += 1
         [images.append(Image(obj)) for obj in json_response]
 
+    if args.verbose:
+        print(f"parsed metadata for {len(images)} images", file=sys.stderr)
+
     resolution_buckets: [float, list[Image]] = {}
 
     for image in images:
@@ -75,19 +101,18 @@ def main():
     ratio: tuple[float, list[Image]] = max(resolution_buckets.items(), key=lambda item: len(item[1]))
     bucket_images: list[Image] = resolution_buckets[ratio[0]]
 
+    if args.verbose:
+        print(f"using {len(bucket_images)} images with ratio {ratio[0]}", file=sys.stderr)
+
     min_image: Image = min(bucket_images, key=lambda im: im.width * im.height)
     min_width: int = min_image.width
     min_height: int = min_image.height
 
-    for image in bucket_images:
-        local_path = os.path.join(os.getcwd(), args.output_directory, os.path.basename(image.file_url))
-        save_path = os.path.splitext(local_path)[0] + '.png'
-        txt_path = os.path.splitext(local_path)[0] + '.txt'
+    if args.verbose:
+        print(f"resizing to {min_width}x{min_height}", file=sys.stderr)
 
-        with open(save_path, 'wb') as f:
-            image.download_image().resize((min_width, min_height)).save(f, format="png")
-        with open(txt_path, 'w') as f:
-            print(', '.join(args.trigger_tags + image.tags_character + image.tags), file=f)
+    with multiprocessing.Pool(processes=args.jobs) as pool:
+        pool.starmap(download, [(im, args, min_width, min_height) for im in bucket_images])
 
 
 if __name__ == '__main__':

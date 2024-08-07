@@ -2,22 +2,25 @@
 
 
 ```
-$ python booruget.py -h
-usage: booruget [-h] -t TAG [-T TRIGGER_TAGS] [--include_tags INCLUDE_TAGS] [--exclude_tags EXCLUDE_TAGS] -o OUTPUT_DIRECTORY
-                                                                                                                             
-Download and resize images, and download tags from Danbooru for AI training                                                  
-
-options:
-  -h, --help            show this help message and exit
-  -t TAG, --tag TAG     tags (maximum 2 tags)
-  -T TRIGGER_TAGS, --trigger-tags TRIGGER_TAGS
-                        trigger tags
-  --include-tags INCLUDE_TAGS
-                        only include images with all of these tags (can be repeated)
-  --exclude-tags EXCLUDE_TAGS
-                        exclude all images with any of these tags (can be repeated)
-  -o OUTPUT_DIRECTORY, --output-directory OUTPUT_DIRECTORY
-                        output directory
+$ python booruget.py -h                          
+usage: booruget [-h] -t TAG [-T TRIGGER_TAGS] [--include-tags INCLUDE_TAGS] [--exclude-tags EXCLUDE_TAGS] -o OUTPUT_DIRECTORY [-j JOBS] [-v] [--no-resize]
+                                                                                                                                                          
+Download and resize images, and download tags from Danbooru for AI training                                                                               
+                                                                                                                                                          
+options:                                                                                                                                                  
+  -h, --help            show this help message and exit                                                                                                   
+  -t TAG, --tag TAG     tags (maximum 2 tags)                                                                                                             
+  -T TRIGGER_TAGS, --trigger-tags TRIGGER_TAGS                                                                                                            
+                        trigger tags                                                                                                                      
+  --include-tags INCLUDE_TAGS                                                                                                                             
+                        only include images with all of these tags (can be repeated)                                                                      
+  --exclude-tags EXCLUDE_TAGS                                                                                                                             
+                        exclude all images with any of these tags (can be repeated)                                                                       
+  -o OUTPUT_DIRECTORY, --output-directory OUTPUT_DIRECTORY                                                                                                
+                        output directory                                                                                                                  
+  -j JOBS, --jobs JOBS  number of parallel download threads                                                                                               
+  -v, --verbose         verbose mode
+  --no-resize           disable image resizing
 ```
 
 This tool grabs the metadata for all images, groups them by aspect ratio, 
